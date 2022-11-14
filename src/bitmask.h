@@ -1,5 +1,5 @@
 //
-// Created by User on 2022-01-04.
+// Created by ethanthoma on 2022-01-04.
 //
 
 #ifndef ECS_BITMASK_H
@@ -9,30 +9,35 @@
 #include <cstdint>
 #include <set>
 #include <utility>
+#include <functional>
 
 namespace ecs {
     class bitmask {
     private:
-        uint32_t capacity_ = 1;
-        uint32_t size_ = 0;
-        uint64_t * begin_;
+        using bitmask_size = uint32_t;
+        using index_size = uint32_t;
+        uint32_t BITS = 32;
+
+        index_size capacity_ = 1;
+        index_size size_ = 0;
+        bitmask_size * begin_;
     public:
         bitmask() {
-            begin_ = (uint64_t *) calloc(capacity_, sizeof(uint64_t));
+            begin_ = (bitmask_size *) calloc(capacity_, sizeof(bitmask_size));
         }
 
         bitmask(const bitmask & t_bm) {
             size_ = t_bm.size_;
             capacity_ = t_bm.capacity_;
-            begin_ = (uint64_t *) calloc(capacity_, sizeof(uint64_t));
+            begin_ = (bitmask_size *) calloc(capacity_, sizeof(bitmask_size));
 
-            for (uint32_t i = 0; i != capacity_; ++i) {
+            for (index_size i = 0; i != capacity_; ++i) {
                 begin_[i] = t_bm.begin_[i];
             }
         }
 
-        bitmask(std::initializer_list<uint32_t> t_is) {
-            begin_ = (uint64_t *) calloc(capacity_, sizeof(uint64_t));
+        bitmask(std::initializer_list<index_size> t_is) {
+            begin_ = (bitmask_size *) calloc(capacity_, sizeof(bitmask_size));
             for (auto i : t_is) {
                 insert(i);
             }
@@ -42,29 +47,37 @@ namespace ecs {
             free(begin_);
         }
 
-        void insert(uint32_t t_i) {
-            auto index = t_i >> 6;
-            auto val = 0x8000000000000000 >> t_i;
+        void insert(index_size t_i) {
+            // divide by BITS to see which part of the array it indexes into
+            index_size index = t_i / BITS;
+            // get the current bit
+            bitmask_size val = 1 << (BITS - 1 - (t_i % BITS));
 
+            // increase the size of the array if you have to grow to fit more components
             if (index >= capacity_) {
                 capacity_ = index + 1;
-                begin_ = (uint64_t *) realloc(begin_, capacity_);
+                begin_ = (bitmask_size *) realloc(begin_, capacity_);
+                begin_[index] &= 0;
             }
 
-            size_ += begin_[index] ^ val;
+            // increase the size if it's bigger than the current size
+            size_ = size_ < t_i ? t_i : size_;
+            // set bit
             begin_[index] |= val;
         }
 
-        bool has_type(uint32_t t_i) {
-            auto index = t_i >> 6;
-            auto val = 0x8000000000000000 >> t_i;
+        bool has_type(index_size t_i) {
+            // divide by BITS to see which part of the array it indexes into
+            index_size index = t_i / BITS;
+            // get the current bit
+            bitmask_size val = (bitmask_size) 1 << (BITS - 1 - (t_i % BITS));
 
             return index < capacity_ && begin_[index] & val;
         }
 
         [[nodiscard]] size_t hash() const {
             std::size_t seed = 0;
-            uint32_t i = 0;
+            index_size i = 0;
             while(i++ != capacity_) {
                 seed ^= std::hash<uint64_t>{}(begin_[i]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
             }
@@ -78,9 +91,11 @@ namespace ecs {
         bool operator==(const bitmask & t_other) const {
             if (size_ != t_other.size_) return false;
 
-            uint64_t i = 0, j = 0;
+            index_size i = 0, j = 0;
             while (i++ != capacity_) {
                 j |= begin_[i] ^ t_other.begin_[i];
+
+                if (j) break;
             }
 
             return !j;
@@ -90,10 +105,54 @@ namespace ecs {
             if (size_ != t_other.size_) return size_ < t_other.size_;
 
             // capacity_ >= 1 so begin_[0] is always defined
-            uint64_t i = 0;
+            index_size i = 0;
             while(begin_[i] == t_other.begin_[i] && ++i != capacity_) {}
 
             return begin_[i] < t_other.begin_[i];
+        }
+
+        void foreach(const std::function<void(uint32_t)> & func) {
+            index_size shift, i;
+            bitmask_size mask;
+            // iterate over all components
+            for (i = 0; i != capacity_; ++i) {
+                // shift to check for each component
+                for (shift = 0; shift != BITS; ++shift) {
+                    // get the bit we care about
+                    mask = 1 << (BITS - 1 - shift);
+                    // if we have it, call callback with it
+                    if (begin_[i] & mask) {
+                        func(shift + (i * BITS));
+                    }
+                }
+            }
+        }
+
+        template<class T>
+        auto map(const std::function<T(uint32_t)> & func) {
+            auto arr = new T[size_];
+            index_size shift, i, j = 0;
+            bitmask_size mask;
+            // iterate over all components
+            for (i = 0; i != capacity_; ++i) {
+                // shift to check for each component
+                for (shift = 0; shift != BITS; ++shift) {
+                    // get the bit we care about
+                    mask = 1 << (BITS - 1 - shift);
+                    // if we have it, call callback with it
+                    if (begin_[i] & mask) {
+                        arr[j++] = func(shift + (i * BITS));
+                    }
+                }
+            }
+
+            return std::unique_ptr<char[]>(arr);
+        }
+    };
+
+    struct bitmask_hash {
+        std::size_t operator()(const bitmask & t_a) const noexcept {
+            return t_a.hash();
         }
     };
 } // namespace ecs

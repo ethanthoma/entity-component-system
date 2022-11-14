@@ -1,5 +1,5 @@
 //
-// Created by User on 2022-01-02.
+// Created by ethanthoma on 2022-01-02.
 //
 
 #ifndef ECS_COMPONENT_MANAGER_H
@@ -19,83 +19,61 @@
 #include "component.h"
 #include "component_container.h"
 #include "bitmask.h"
-#include "instanceof.h"
 
 namespace ecs {
     typedef uint32_t component_index;
     typedef uint32_t component_container_index;
 
     struct archetype {
+        std::multiset<component_id> components_;
         std::unordered_map<component_id, component_container_index> id_to_container_index;
-        mutable uint32_t start = 0;
-        mutable uint32_t end = 0;
         mutable uint32_t count = 0;
+        mutable uint32_t start = 0;
+
+        // vector of all the component containers
+        std::vector<std::unique_ptr<i_component_container>> component_containers_;
     };
 
     class component_manager {
     private:
-        bitmask base_bitmask_;
-
+        // how many components are registered
         uint32_t component_index_count_ = 0;
+        // maps component to index in component containers
         std::unordered_map<component_id, component_index> id_to_index_;
-        std::vector<std::unique_ptr<i_component_container>> component_containers_;
+        // vector of all the component containers
+        // std::vector<std::unique_ptr<i_component_container>> component_containers_;
 
-        struct bitmask_hash {
-            std::size_t operator()(const bitmask & t_a) const noexcept {
-                return t_a.hash();
-            }
-        };
-
+        // maps an archetype bitmask to an archetype instance
         std::unordered_map<bitmask, archetype, bitmask_hash> bm_to_a_;
+        // all archetypes created so far
         std::set<const archetype *> layout_;
 
         template<typename T> auto get_component_container() {
-            return static_cast<component_container<T> *>(component_containers_[id_to_index_.at(component<T>::get_id())].get());
+           //return static_cast<component_container<T> *>(component_containers_[id_to_index_.at(component<T>::get_id())].get());
         }
     public:
-        component_manager() {
-            component_id id = component<instanceof>::get_id();
-            component_index index = register_component<instanceof>();
+        component_manager() = default;
 
-            archetype a;
-            a.id_to_container_index[id] = index;
-            a.count = 1;
-            base_bitmask_.insert(id);
-            bm_to_a_[base_bitmask_] = a;
-            layout_.insert(&bm_to_a_.at(base_bitmask_));
-        }
-
-        const bitmask * get_base_bitmask() {
-            return &base_bitmask_;
-        }
-
+        // registers a new component type
         template<typename T> component_index register_component() {
             // get type index of T
             const component_id & id = component<T>::get_id();
 
-            // see if component has been registered
-            if (id_to_index_.find(id) == id_to_index_.end()) {
-                // register type index to component i (id)
-                id_to_index_[id] = component_index_count_++;
-                // map component i to bm component container; indexed by (i, j)
-                component_containers_.push_back(std::make_unique<component_container<T>>());
-                return component_index_count_ - 1;
-            } else {
-                return id_to_index_.at(id);
-            }
+            return id;
         }
 
+        // registers an archetype from bitmask
+        // RETURNS: bitmask pointer
         const bitmask * register_archetype(const bitmask * t_a) {
             bm_to_a_[*t_a].count++;
             return &bm_to_a_.find(*t_a)->first;
         }
 
-        void deregister_archetype(const bitmask * t_a, component_container_index t_instanceof_index) {
+        void deregister_archetype(const bitmask * t_a, int entity_archetype_index) {
             auto it = bm_to_a_.find(*t_a);
             if (it != bm_to_a_.end()) {
                 // decreases archetype count and end
                 it->second.count--;
-                it->second.end--;
                 // deletes archetype if no more entities have it
                 if(it->second.count == 0) {
                     layout_.erase(layout_.find(&it->second));
@@ -104,33 +82,54 @@ namespace ecs {
                 }
 
                 // shuffles every archetype after the current archetype down
-                auto set_it = --layout_.rbegin();
-                while(*set_it != &it->second) {
-                    (*set_it)->start--;
-                    (*set_it)->end--;
-                }
-
-                // swaps the contents of the last entity with the entity with instanceof index of t_instanceof_index
-                for (auto & [id, con_index] : (*set_it)->id_to_container_index) {
-                    static_cast<i_component_container *>(component_containers_[id].get())->swap(con_index + (*set_it)->end,
-                                                                                                con_index + (t_instanceof_index - (*set_it)->start));
-                }
+                shuffle(&it->second, entity_archetype_index);
             }
         }
 
-        template<typename first, typename ...rest> const bitmask * update_archetype(const bitmask * t_old) {
-            bitmask t_new(*t_old);
-
-            deregister_archetype(t_old);
-
-            t_new.insert(register_component<first>());
-            t_new.insert(register_component<rest...>());
-
-            return register_archetype(&t_new);
+        // shuffles archetypes down
+        void shuffle(const archetype * start, uint32_t  offset) {
+            // start at the current archetype in the layout
+            auto set_it = layout_.find(start);
+            // the starting indices to shuffle each component by
+            auto curr_map = start->id_to_container_index;
+            // where the first and last element of the archetype is
+            auto curr_start = start->start;
+            auto curr_count = start->count;
+            // iterate all archetypes after the current one
+            while(set_it != layout_.end()) {
+                // move the last element in the container to a gap
+                for (auto & it: curr_map) {
+                    // get the i index for current i
+                    component_index i = id_to_index_.at(it.first);
+                    // subtract so it refers to the last index of the previous map
+                    component_container_index container_offset = it.second + offset;
+                    // move last element to front plus offset
+                    // component_containers_[i]->move_to(curr_start + container_offset + curr_count,
+                    //                                  curr_start + container_offset);
+                }
+                // get next archetype
+                set_it++;
+                // get archetype start index and size
+                // reduce start by 1 for all indices after the first
+                curr_start = --(*set_it)->start;
+                curr_count = (*set_it)->count;
+                offset = -1;
+            }
         }
 
-        const bitmask * update_archetype(const bitmask * t_old, const bitmask * t_new) {
-            deregister_archetype(t_old);
+        //
+//        template<typename T> bitmask update_archetype(const bitmask t_old, int entity_archetype_index) {
+//            bitmask t_new(t_old);
+//
+//            deregister_archetype(t_old, entity_archetype_index);
+//
+//            t_new.insert(register_component<T>());
+//
+//            return register_archetype(t_new);
+//        }
+
+        const bitmask * update_archetype(const bitmask * t_old, const bitmask * t_new, component_container_index t_instanceof_index) {
+            deregister_archetype(t_old, t_instanceof_index);
             return register_archetype(t_new);
         }
 
@@ -156,10 +155,10 @@ namespace ecs {
 
         // removes component i,j
         void free(component_index t_i, component_container_index t_j) {
-            static_cast<i_component_container *>(component_containers_[t_i].get())->remove(t_j);
+            // static_cast<i_component_container *>(component_containers_[t_i].get())->remove(t_j);
         }
 
-        auto get_archetype_count (const bitmask * t_a) const {
+        auto get_archetype_count (const std::shared_ptr<bitmask> & t_a) const {
             return bm_to_a_.at(*t_a).count;
         }
 

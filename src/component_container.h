@@ -1,5 +1,5 @@
 //
-// Created by User on 2022-01-02.
+// Created by ethanthoma on 2022-01-02.
 //
 
 #ifndef ECS_COMPONENT_CONTAINER_H
@@ -88,8 +88,19 @@ namespace ecs {
             }
         }
 
+        // copies element at t_from_index to t_to_index
+        void move_to(uint32_t t_from_index, uint32_t t_to_index) {
+            if (t_from_index < 0 || t_from_index > size_) {std::cout << "move_to: t_from_index out of bounds\n"; return;}
+            if (t_to_index < 0 || t_to_index > size_) {std::cout << "move_to: t_to_index out of bounds\n"; return;}
+
+            char * from = reinterpret_cast<char *>(begin_) + (t_from_index * elem_size_);
+            char * to = reinterpret_cast<char *>(begin_) + (t_to_index * elem_size_);
+
+            memcpy(to, from, elem_size_);
+        }
+
         void remove(uint32_t t_index) {
-            if (size_ == 0) {std::cout<<"remove: size_ alrdy 0\n"; return;}
+            if (size_ == 0) {std::cout<<"remove: nothing to remove\n"; return;}
 
             if (t_index != size_ - 1) {
                 memcpy(reinterpret_cast<char *>(begin_) + (t_index * elem_size_), reinterpret_cast<char *>(end_) - elem_size_, elem_size_);
@@ -101,14 +112,18 @@ namespace ecs {
         [[nodiscard]] uint32_t size() const {
             return size_;
         }
+
+        std::unique_ptr<char[]> operator[](uint32_t t_index) {
+            auto retval = new char[elem_size_];
+            memcpy(retval, reinterpret_cast<char *>(begin_) + (t_index * elem_size_), elem_size_);
+            return std::unique_ptr<char[]> (retval);
+        }
     };
 
     template <typename T>
     class component_container : public i_component_container {
     public:
         component_container() : i_component_container(capacity_size_ < sizeof(T) ? ((sizeof(T) / capacity_size_) + 1) : MIN_CAPACITY_) {
-            if ((elem_size_ = sizeof(T)) == 0) { std::cout<<"component_container: template size_ is 0\n"; throw; }
-
             capacity_ = capacity_size_ / elem_size_;
         }
     };
