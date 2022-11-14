@@ -37,17 +37,17 @@ int main() {
     level_1.mutate(player).set_archetype<position>(1, 2);
 
     // add one component
-    level_1.mutate(player).add_component<health>(10);
-
-    // batch create instance
-    ecs::entity_batch batch = level_1.make_entity(10000);
-    level_1.mutate(batch).set_archetype<position, health>(1, 2, 10);
-
-    // remove one component
-    level_1.mutate(batch).remove_component<health>();
-
-    // delete entity
-    level_1.free_entity(player);
+//    level_1.mutate(player).add_component<health>(10);
+//
+//    // batch create instance
+//    ecs::entity_batch batch = level_1.make_entity(10000);
+//    level_1.mutate(batch).set_archetype<position, health>(1, 2, 10);
+//
+//    // remove one component
+//    level_1.mutate(batch).remove_component<health>();
+//
+//    // delete entity
+//    level_1.free_entity(player);
 
     return 0;
 }

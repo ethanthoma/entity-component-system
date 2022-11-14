@@ -1,5 +1,5 @@
 //
-// Created by User on 2022-01-02.
+// Created by ethanthoma on 2022-01-02.
 //
 
 #ifndef ECS_ENTITY_MANAGER_H
@@ -20,8 +20,12 @@ namespace ecs {
     public:
         entity_manager() = default;
         entity make();
-        void free(entity e);
+        void free(entity t_e);
         void update();
+
+        entity_batch make(uint32_t t_amt);
+
+        void free(const entity_batch& t_eb);
     };
 } // namespace ecs
 

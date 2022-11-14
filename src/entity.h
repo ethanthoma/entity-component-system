@@ -7,6 +7,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <functional>
 
 namespace ecs {
     struct entity {
@@ -28,9 +29,29 @@ namespace ecs {
 
     struct entity_batch {
         uint32_t size_ = 0;
-        std::unique_ptr<entity> arr_;
+        std::unique_ptr<entity> arr_ = nullptr;
 
         explicit entity_batch(uint32_t t_size) : size_(t_size), arr_(std::make_unique<entity>(t_size)) {}
+
+        entity_batch(entity_batch const & t_eb) : size_(t_eb.size_), arr_(std::make_unique<entity>(size_)) {
+            copy(t_eb);
+        }
+
+        void foreach(const std::function<void(entity)> & func) const {
+            for (uint32_t i = 0; i != size_; ++i) {
+                func(arr_.get()[i]);
+            }
+        }
+
+        entity_batch & operator=(const entity_batch & t_eb) {
+            copy(t_eb);
+
+            return *this;
+        }
+
+        ecs::entity & operator[](uint32_t index) const {
+            return arr_.get()[index];
+        }
 
         // order preserving
         bool operator==(const entity_batch & eb) const noexcept {
@@ -39,6 +60,16 @@ namespace ecs {
                 is_equal &= arr_.get()[i] == eb.arr_.get()[i];
             }
             return is_equal;
+        }
+
+    private:
+        void copy(const entity_batch & t_eb) {
+            size_ = t_eb.size_;
+            arr_ = std::make_unique<entity>(t_eb.size_);
+
+            for (uint32_t i = 0; i != size_; ++i) {
+                arr_.get()[i] = t_eb.arr_.get()[i];
+            }
         }
     };
 } // namespace ecs

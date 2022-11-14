@@ -14,6 +14,7 @@
 #include "entity_manager.h"
 #include "component_manager.h"
 #include "bitmask.h"
+#include "either.h"
 
 namespace ecs {
     class scene {
@@ -23,18 +24,56 @@ namespace ecs {
 
         std::unordered_map<entity, std::shared_ptr<bitmask>, entity_hash> e_to_b_;
         std::unordered_map<entity, uint32_t, entity_hash> e_to_a_index_;
-    public:
-        void mutate(entity entity1) {
 
+        class mutator {
+        private:
+            either<entity, entity_batch> e_;
+        public:
+            explicit mutator(entity t_e) : e_(either<entity, entity_batch>(t_e)) {}
+            explicit mutator(const entity_batch & t_eb) : e_(either<entity, entity_batch>(t_eb)) {}
+
+            template <class C, class ...Args>
+            auto add_component(Args ...args) {
+
+            }
+
+            template <class C>
+            auto remove_component() {
+
+            }
+
+            template<class first, class ...rest, class ...Args>
+            auto set_archetype(Args ...args) {
+
+            }
+        };
+    public:
+        mutator mutate(entity t_e) {
+            return mutator(t_e);
+        }
+
+        mutator mutate(const entity_batch& t_eb) {
+            return mutator(t_eb);
         }
 
         ecs::entity make_entity() {
-            return ecs::entity();
+            ecs::entity e = em_.make();
+            return e;
         }
 
-        void free_entity(entity t_entity) {
-
+        ecs::entity_batch make_entity(uint32_t t_amt) {
+            ecs::entity_batch eb = em_.make(t_amt);
+            return eb;
         }
+
+        void free_entity(entity t_e) {
+            em_.free(t_e);
+        }
+
+        void free_entity(const entity_batch & t_eb) {
+            em_.free(t_eb);
+        }
+
 //        auto makeEntity() {
 //            // create a new entity
 //            auto e = em.make();

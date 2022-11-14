@@ -1,5 +1,5 @@
 //
-// Created by User on 2022-01-02.
+// Created by ethanthoma on 2022-01-02.
 //
 
 #include "entity_manager.h"
@@ -18,8 +18,20 @@ ecs::entity ecs::entity_manager::make() {
     return e;
 }
 
-void ecs::entity_manager::free(entity e) {
-    to_free_.push_back(e);
+ecs::entity_batch ecs::entity_manager::make(uint32_t t_amt) {
+    entity_batch eb(t_amt);
+    for (uint32_t i = 0; i != t_amt; ++i) {
+        eb[i] = make();
+    }
+    return eb;
+}
+
+void ecs::entity_manager::free(entity t_e) {
+    to_free_.push_back(t_e);
+}
+
+void ecs::entity_manager::free(const entity_batch& t_eb) {
+    t_eb.foreach([this](entity e) { to_free_.push_back(e); });
 }
 
 void ecs::entity_manager::update() {
