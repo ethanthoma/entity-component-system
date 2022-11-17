@@ -101,6 +101,19 @@ namespace ecs {
             return !j;
         }
 
+        bool operator!=(const bitmask & t_other) const {
+            if (size_ != t_other.size_) return true;
+
+            index_size i = 0, j = 0;
+            while (i++ != capacity_) {
+                j |= begin_[i] ^ t_other.begin_[i];
+
+                if (j) break;
+            }
+
+            return j;
+        }
+
         bool operator<(const bitmask & t_other) const {
             if (size_ != t_other.size_) return size_ < t_other.size_;
 
@@ -147,6 +160,17 @@ namespace ecs {
             }
 
             return std::unique_ptr<char[]>(arr);
+        }
+
+        [[nodiscard]] bool subset_of(const bitmask& t_b) const {
+            if (size_ < t_b.size_) return false;
+            index_size smallest_capacity = std::min(capacity_, t_b.capacity_);
+
+            bool is_subset = false;
+            for (index_size i = 0; i != smallest_capacity && !is_subset; ++i) {
+                is_subset |= (t_b.begin_[i] | begin_[i]) ^ t_b.begin_[i];
+            }
+            return is_subset;
         }
     };
 

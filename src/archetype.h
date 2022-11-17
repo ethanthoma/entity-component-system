@@ -67,6 +67,22 @@ namespace ecs {
 
             return either<std::shared_ptr<ecs::i_component_container>, nullptr_t>(iter->second);
         }
+
+        uint32_t query_count() const {
+            return count_;
+        }
+
+        bool subset_of(const archetype & t_a) {
+            return b_.subset_of(t_a.b_);
+        }
+
+        auto operator!=(const archetype & t_other) {
+            return b_ != t_other.b_;
+        }
+
+        ecs::bitmask get_bitmask() const {
+            return b_;
+        }
     };
 }
 

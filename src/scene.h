@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <tuple>
 #include <typeindex>
+#include <utility>
 
 #include "entity.h"
 #include "entity_manager.h"
@@ -20,17 +21,18 @@ namespace ecs {
     class scene {
     private:
         entity_manager em_;
-        component_manager cm;
+        component_manager cm_;
 
         std::unordered_map<entity, std::shared_ptr<bitmask>, entity_hash> e_to_b_;
         std::unordered_map<entity, uint32_t, entity_hash> e_to_a_index_;
 
         class mutator {
         private:
+            component_manager cm_;
             either<entity, entity_batch> e_;
         public:
-            explicit mutator(entity t_e) : e_(either<entity, entity_batch>(t_e)) {}
-            explicit mutator(const entity_batch & t_eb) : e_(either<entity, entity_batch>(t_eb)) {}
+            explicit mutator(component_manager t_cm, entity t_e) : cm_(std::move(t_cm)), e_(either<entity, entity_batch>(t_e)) {}
+            explicit mutator(component_manager t_cm, const entity_batch & t_eb) : cm_(std::move(t_cm)), e_(either<entity, entity_batch>(t_eb)) {}
 
             template <class C, class ...Args>
             auto add_component(Args ...args) {
@@ -42,18 +44,24 @@ namespace ecs {
 
             }
 
-            template<class first, class ...rest, class ...Args>
-            auto set_archetype(Args ...args) {
+            template<typename first_c, typename ...rest_of_cs, class first_arg, class ...rest_of_args>
+            auto set_archetype(first_arg f, rest_of_args ...args) {
+                const std::size_t parameter_count = sizeof...(rest_of_args);
+                bitmask b = cm_.get_bitmask<first_c, rest_of_cs...>();
+            }
 
+            template<typename first_c, typename ...rest_of_cs>
+            auto set_archetype() {
+                bitmask b = cm_.get_bitmask<first_c, rest_of_cs...>();
             }
         };
     public:
         mutator mutate(entity t_e) {
-            return mutator(t_e);
+            return mutator(cm_, t_e);
         }
 
         mutator mutate(const entity_batch& t_eb) {
-            return mutator(t_eb);
+            return mutator(cm_, t_eb);
         }
 
         ecs::entity make_entity() {
